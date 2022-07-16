@@ -43,7 +43,7 @@
 #define COMP_DATA_1_OCTET(msg, offset) (msg[offset])
 #define COMP_DATA_2_OCTET(msg, offset) (msg[offset + 1] << 8 | msg[offset])
 
-static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN];
+static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN]= { 0xdd, 0xdd };
 static uint16_t server_address = ESP_BLE_MESH_ADDR_UNASSIGNED;
 static uint16_t sensor_prop_id;
 
