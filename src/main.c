@@ -43,7 +43,7 @@
 #define COMP_DATA_1_OCTET(msg, offset) (msg[offset])
 #define COMP_DATA_2_OCTET(msg, offset) (msg[offset + 1] << 8 | msg[offset])
 
-static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN]= { 0xdd, 0xdd };
+static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0xdd, 0xdd};
 static uint16_t server_address = ESP_BLE_MESH_ADDR_UNASSIGNED;
 static uint16_t sensor_prop_id;
 
@@ -448,6 +448,7 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
     }
 }
 
+// MAIN FUNCTION WHICH REQUESTS FOR SENSOR DATA
 void example_ble_mesh_send_sensor_message(uint32_t opcode)
 {
     esp_ble_mesh_sensor_client_get_state_t get = {0};
@@ -718,6 +719,20 @@ static esp_err_t ble_mesh_init(void)
     return ESP_OK;
 }
 
+void task_get(void *ignore)
+{
+
+    while (1)
+    {
+
+        example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
+            // ESP_BLE_MESH_MODEL_OP_SENSOR_GET
+            // ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    vTaskDelete(NULL);
+}
+
 void app_main(void)
 {
     esp_err_t err = ESP_OK;
@@ -749,4 +764,6 @@ void app_main(void)
     {
         ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
     }
+
+    xTaskCreate(&task_get, "task_get", 2048, NULL, 7, NULL);
 }

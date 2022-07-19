@@ -30,11 +30,11 @@ static uint32_t send_opcode[] = {
 };
 static uint8_t press_count;
 
-static void button_tap_cb(void *arg)
-{
-    example_ble_mesh_send_sensor_message(send_opcode[press_count++]);
-    press_count = press_count % ARRAY_SIZE(send_opcode);
-}
+// static void button_tap_cb(void *arg)
+// {
+//     example_ble_mesh_send_sensor_message(send_opcode[press_count++]);
+//     press_count = press_count % ARRAY_SIZE(send_opcode);
+// }
 
 static void board_button_init(void)
 {   
