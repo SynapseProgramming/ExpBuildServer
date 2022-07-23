@@ -614,6 +614,9 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                        // ESP_LOG_BUFFER_HEX("Sensor Data", data + mpid_len, data_len + 1);
                         uint8_t value = *(data + mpid_len);
                         ESP_LOGI("SENSOR VALUE", "%d", value);
+                            
+                        uint8_t val = *(data + mpid_len +1);
+                        ESP_LOGI("SECOND SENSOR VALUE", "%d", val);
 
                         length += mpid_len + data_len + 1;
                         data += mpid_len + data_len + 1;
