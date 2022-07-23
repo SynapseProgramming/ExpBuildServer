@@ -616,7 +616,10 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                         int8_t y_val = (int8_t)(*(data + mpid_len + 1));
                         int8_t z_val = (int8_t)(*(data + mpid_len + 2));
 
+                        uint8_t ble_address = *(data + mpid_len + 3);
+
                         ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d", x_val, y_val, z_val);
+                        ESP_LOGI("BLE ADDRESS:", "%d", ble_address);
 
                         length += mpid_len + data_len + 1;
                         data += mpid_len + data_len + 1;
