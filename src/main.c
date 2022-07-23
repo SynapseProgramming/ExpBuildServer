@@ -611,12 +611,12 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                              fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ? "A" : "B", data_len, prop_id);
                     if (data_len != ESP_BLE_MESH_SENSOR_DATA_ZERO_LEN)
                     {
-                       // ESP_LOG_BUFFER_HEX("Sensor Data", data + mpid_len, data_len + 1);
-                        uint8_t value = *(data + mpid_len);
-                        ESP_LOGI("SENSOR VALUE", "%d", value);
-                            
-                        uint8_t val = *(data + mpid_len +1);
-                        ESP_LOGI("SECOND SENSOR VALUE", "%d", val);
+                        // ESP_LOG_BUFFER_HEX("Sensor Data", data + mpid_len, data_len + 1);
+                        int8_t x_val = (int8_t)(*(data + mpid_len));
+                        int8_t y_val = (int8_t)(*(data + mpid_len + 1));
+                        int8_t z_val = (int8_t)(*(data + mpid_len + 2));
+
+                        ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d", x_val, y_val, z_val);
 
                         length += mpid_len + data_len + 1;
                         data += mpid_len + data_len + 1;
@@ -735,7 +735,7 @@ void task_get(void *ignore)
         example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
         // ESP_BLE_MESH_MODEL_OP_SENSOR_GET
         // ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
     }
     vTaskDelete(NULL);
 }
