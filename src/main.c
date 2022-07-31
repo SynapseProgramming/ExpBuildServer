@@ -28,6 +28,7 @@
 
 #define CID_ESP 0x02E5
 
+// provisoners own address
 #define PROV_OWN_ADDR 0x0001
 
 #define MSG_SEND_TTL 3
