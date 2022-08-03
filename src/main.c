@@ -20,6 +20,8 @@
 #include <esp_ble_mesh_networking_api.h>
 #include <esp_ble_mesh_config_model_api.h>
 #include <esp_ble_mesh_sensor_model_api.h>
+#include <esp_ble_mesh_common_api.h>
+#include <esp_ble_mesh_local_data_operation_api.h>
 
 #include "ble_mesh_example_init.h"
 #include "board.h"
@@ -35,6 +37,7 @@
 #define MSG_SEND_REL false
 #define MSG_TIMEOUT 0
 #define MSG_ROLE ROLE_PROVISIONER
+#define SUBSCRIPTION_ADDR 49152
 
 #define COMP_DATA_PAGE_0 0x00
 
@@ -44,6 +47,7 @@
 #define COMP_DATA_1_OCTET(msg, offset) (msg[offset])
 #define COMP_DATA_2_OCTET(msg, offset) (msg[offset + 1] << 8 | msg[offset])
 
+void example_ble_mesh_send_sensor_message(uint32_t opcode);
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0xdd, 0xdd};
 static uint16_t server_address = ESP_BLE_MESH_ADDR_UNASSIGNED;
 static uint16_t sensor_prop_id;
@@ -147,6 +151,7 @@ static esp_err_t prov_complete(uint16_t node_index, const esp_ble_mesh_octet16_t
         return ESP_FAIL;
     }
 
+    example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
     return ESP_OK;
 }
 
@@ -246,11 +251,22 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
         }
         break;
     case ESP_BLE_MESH_PROVISIONER_BIND_APP_KEY_TO_MODEL_COMP_EVT:
+
         ESP_LOGI(TAG, "ESP_BLE_MESH_PROVISIONER_BIND_APP_KEY_TO_MODEL_COMP_EVT, err_code %d", param->provisioner_bind_app_key_to_model_comp.err_code);
+        esp_err_t err = esp_ble_mesh_model_subscribe_group_addr(PROV_OWN_ADDR, ESP_BLE_MESH_CID_NVAL, ESP_BLE_MESH_MODEL_ID_SENSOR_CLI, SUBSCRIPTION_ADDR);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to subscribe to group 0x%04x", SUBSCRIPTION_ADDR);
+        }
+
         break;
     case ESP_BLE_MESH_PROVISIONER_STORE_NODE_COMP_DATA_COMP_EVT:
         ESP_LOGI(TAG, "ESP_BLE_MESH_PROVISIONER_STORE_NODE_COMP_DATA_COMP_EVT, err_code %d", param->provisioner_store_node_comp_data_comp.err_code);
         break;
+    case ESP_BLE_MESH_MODEL_SUBSCRIBE_GROUP_ADDR_COMP_EVT:
+        ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_SUBSCRIBE_GROUP_ADDR_COMP_EVT, err_code %d", param->model_sub_group_addr_comp.err_code);
+        break;
+
     default:
         break;
     }
@@ -365,6 +381,7 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
                 ESP_LOGE(TAG, "Failed to send Config Model App Bind");
                 return;
             }
+         
             wait_model_id = ESP_BLE_MESH_MODEL_ID_SENSOR_SRV;
             wait_cid = ESP_BLE_MESH_CID_NVAL;
         }
@@ -676,6 +693,44 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
         }
         break;
     case ESP_BLE_MESH_SENSOR_CLIENT_PUBLISH_EVT:
+        ESP_LOGI("RECEIVED TOPIC","YES");
+        if (param->status_cb.sensor_status.marshalled_sensor_data->len)
+        {
+            // ESP_LOG_BUFFER_HEX("Sensor Data", param->status_cb.sensor_status.marshalled_sensor_data->data,
+            //                    param->status_cb.sensor_status.marshalled_sensor_data->len);
+            uint8_t *data = param->status_cb.sensor_status.marshalled_sensor_data->data;
+            uint16_t length = 0;
+            for (; length < param->status_cb.sensor_status.marshalled_sensor_data->len;)
+            {
+                uint8_t fmt = ESP_BLE_MESH_GET_SENSOR_DATA_FORMAT(data);
+                uint8_t data_len = ESP_BLE_MESH_GET_SENSOR_DATA_LENGTH(data, fmt);
+                uint16_t prop_id = ESP_BLE_MESH_GET_SENSOR_DATA_PROPERTY_ID(data, fmt);
+                uint8_t mpid_len = (fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ? ESP_BLE_MESH_SENSOR_DATA_FORMAT_A_MPID_LEN : ESP_BLE_MESH_SENSOR_DATA_FORMAT_B_MPID_LEN);
+                // ESP_LOGI(TAG, "Format %s, length 0x%02x, Sensor Property ID 0x%04x",
+                //          fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ? "A" : "B", data_len, prop_id);
+                if (data_len != ESP_BLE_MESH_SENSOR_DATA_ZERO_LEN)
+                {
+                    // ESP_LOG_BUFFER_HEX("Sensor Data", data + mpid_len, data_len + 1);
+                    int8_t x_val = (int8_t)(*(data + mpid_len));
+                    int8_t y_val = (int8_t)(*(data + mpid_len + 1));
+                    int8_t z_val = (int8_t)(*(data + mpid_len + 2));
+
+                    uint8_t ble_address = *(data + mpid_len + 3);
+
+                    ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d ble_address: %d", x_val, y_val, z_val, ble_address);
+                    // ESP_LOGI("BLE ADDRESS:", "%d", ble_address);
+
+                    length += mpid_len + data_len + 1;
+                    data += mpid_len + data_len + 1;
+                }
+                else
+                {
+                    length += mpid_len;
+                    data += mpid_len;
+                }
+            }
+        }
+
         break;
     case ESP_BLE_MESH_SENSOR_CLIENT_TIMEOUT_EVT:
         example_ble_mesh_sensor_timeout(param->params->opcode);
@@ -776,5 +831,5 @@ void app_main(void)
         ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
     }
 
-    xTaskCreate(&task_get, "task_get", 2048, NULL, 7, NULL);
+    // xTaskCreate(&task_get, "task_get", 2048, NULL, 7, NULL);
 }
