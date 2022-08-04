@@ -151,7 +151,6 @@ static esp_err_t prov_complete(uint16_t node_index, const esp_ble_mesh_octet16_t
         return ESP_FAIL;
     }
 
-    example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
     return ESP_OK;
 }
 
@@ -381,7 +380,7 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
                 ESP_LOGE(TAG, "Failed to send Config Model App Bind");
                 return;
             }
-         
+
             wait_model_id = ESP_BLE_MESH_MODEL_ID_SENSOR_SRV;
             wait_cid = ESP_BLE_MESH_CID_NVAL;
         }
@@ -406,7 +405,6 @@ static void example_ble_mesh_config_client_cb(esp_ble_mesh_cfg_client_cb_event_t
             }
             else if (param->status_cb.model_app_status.company_id == ESP_BLE_MESH_CID_NVAL)
             {
-                ESP_LOGI("INFO","CALLED");
                 example_ble_mesh_set_msg_common(&common, node, config_client.model, ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET);
                 set.model_pub_set.element_addr = node->unicast_addr;
                 set.model_pub_set.publish_addr = SUBSCRIPTION_ADDR;
@@ -566,7 +564,7 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
 {
     esp_ble_mesh_node_t *node = NULL;
 
-    ESP_LOGI(TAG, "Sensor client, event %u, addr 0x%04x", event, param->params->ctx.addr);
+    //   ESP_LOGI(TAG, "Sensor client, event %u, addr 0x%04x", event, param->params->ctx.addr);
 
     if (param->error_code)
     {
@@ -707,19 +705,17 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
         }
         break;
     case ESP_BLE_MESH_SENSOR_CLIENT_PUBLISH_EVT:
-            ESP_LOGI("RECEIVED TOPIC", "YES");
         if (param->status_cb.sensor_status.marshalled_sensor_data->len)
         {
-                ESP_LOGI("INFO", "Called within main publish callback");
-                ESP_LOG_BUFFER_HEX("Sensor Data", param->status_cb.sensor_status.marshalled_sensor_data->data,
-                                   param->status_cb.sensor_status.marshalled_sensor_data->len);
+            // ESP_LOG_BUFFER_HEX("Sensor Data", param->status_cb.sensor_status.marshalled_sensor_data->data,
+            //                   param->status_cb.sensor_status.marshalled_sensor_data->len);
             uint8_t *data = param->status_cb.sensor_status.marshalled_sensor_data->data;
             uint16_t length = 0;
-                for (; length < param->status_cb.sensor_status.marshalled_sensor_data->len;)
+            for (; length < param->status_cb.sensor_status.marshalled_sensor_data->len;)
             {
                 uint8_t fmt = ESP_BLE_MESH_GET_SENSOR_DATA_FORMAT(data);
                 uint8_t data_len = ESP_BLE_MESH_GET_SENSOR_DATA_LENGTH(data, fmt);
-                uint16_t prop_id = ESP_BLE_MESH_GET_SENSOR_DATA_PROPERTY_ID(data, fmt);
+                //  uint16_t prop_id = ESP_BLE_MESH_GET_SENSOR_DATA_PROPERTY_ID(data, fmt);
                 uint8_t mpid_len = (fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ? ESP_BLE_MESH_SENSOR_DATA_FORMAT_A_MPID_LEN : ESP_BLE_MESH_SENSOR_DATA_FORMAT_B_MPID_LEN);
                 // ESP_LOGI(TAG, "Format %s, length 0x%02x, Sensor Property ID 0x%04x",
                 //          fmt == ESP_BLE_MESH_SENSOR_DATA_FORMAT_A ? "A" : "B", data_len, prop_id);
@@ -730,7 +726,8 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                     int8_t y_val = (int8_t)(*(data + mpid_len + 1));
                     int8_t z_val = (int8_t)(*(data + mpid_len + 2));
 
-                        ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d", x_val, y_val, z_val);
+                    //   ESP_LOGI(TAG, "Sensor client, event %u, addr 0x%04x", event, param->params->ctx.addr);
+                    ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", x_val, y_val, z_val, param->params->ctx.addr);
 
                     length += mpid_len + data_len + 1;
                     data += mpid_len + data_len + 1;
@@ -797,20 +794,6 @@ static esp_err_t ble_mesh_init(void)
     return ESP_OK;
 }
 
-void task_get(void *ignore)
-{
-
-    while (1)
-    {
-
-        example_ble_mesh_send_sensor_message(ESP_BLE_MESH_MODEL_OP_SENSOR_GET);
-        // ESP_BLE_MESH_MODEL_OP_SENSOR_GET
-        // ESP_BLE_MESH_MODEL_OP_SENSOR_COLUMN_GET
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-    }
-    vTaskDelete(NULL);
-}
-
 void app_main(void)
 {
     esp_err_t err = ESP_OK;
@@ -842,6 +825,4 @@ void app_main(void)
     {
         ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
     }
-
-    // xTaskCreate(&task_get, "task_get", 2048, NULL, 7, NULL);
 }
