@@ -62,11 +62,12 @@ static void echo_task(void *arg)
     ESP_ERROR_CHECK(uart_param_config(ECHO_UART_PORT_NUM, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(ECHO_UART_PORT_NUM, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS));
 
-    // Configure a temporary buffer for the incoming data
-    // uint8_t *data = (uint8_t *)malloc(BUF_SIZE);
-    int num = 3;
-    int *data = num;
-    char *test_str = "This is a test string.\n";
+    // create an array of 1 element. 
+    size_t array_size = 1 * sizeof(uint8_t);
+    uint8_t *data = (uint8_t *)malloc(array_size);
+    
+    data[0] = 7;
+   // char *test_str = "This is a test string.\n";
     while (1)
     {
         // Read data from the UART
@@ -74,7 +75,8 @@ static void echo_task(void *arg)
         // Write data back to the UART
 
         // uart_write_bytes(ECHO_UART_PORT_NUM, (const int *)data, sizeof(num));
-        uart_write_bytes(ECHO_UART_PORT_NUM, (const char*)test_str, strlen(test_str));
+        // uart_write_bytes(ECHO_UART_PORT_NUM, (const char *)test_str, strlen(test_str));
+        uart_write_bytes(ECHO_UART_PORT_NUM, (const uint8_t *)data, array_size);
         ESP_LOGI("test", "working");
 
         vTaskDelay(500 / portTICK_PERIOD_MS);
