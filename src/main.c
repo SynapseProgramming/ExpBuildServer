@@ -63,10 +63,11 @@ static void echo_task(void *arg)
     ESP_ERROR_CHECK(uart_set_pin(ECHO_UART_PORT_NUM, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS));
 
     // create an array of 1 element. 
-    size_t array_size = 1 * sizeof(uint8_t);
+    size_t array_size = 2 * sizeof(uint8_t);
     uint8_t *data = (uint8_t *)malloc(array_size);
     
     data[0] = 7;
+    data[1] = 3;
    // char *test_str = "This is a test string.\n";
     while (1)
     {
