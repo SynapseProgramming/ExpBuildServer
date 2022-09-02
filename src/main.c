@@ -648,8 +648,10 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                         int8_t x_val = (int8_t)(*(data + mpid_len));
                         int8_t y_val = (int8_t)(*(data + mpid_len + 1));
                         int8_t z_val = (int8_t)(*(data + mpid_len + 2));
+                        int8_t batt_val = (int8_t)(*(data + mpid_len + 3));
 
                         ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d", x_val, y_val, z_val);
+                        ESP_LOGI("BATTERY LEVEL:", "level: %d", batt_val);
 
                         length += mpid_len + data_len + 1;
                         data += mpid_len + data_len + 1;
@@ -725,9 +727,11 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                     int8_t x_val = (int8_t)(*(data + mpid_len));
                     int8_t y_val = (int8_t)(*(data + mpid_len + 1));
                     int8_t z_val = (int8_t)(*(data + mpid_len + 2));
+                    int8_t batt_val = (int8_t)(*(data + mpid_len + 3));
 
                     //   ESP_LOGI(TAG, "Sensor client, event %u, addr 0x%04x", event, param->params->ctx.addr);
                     ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", x_val, y_val, z_val, param->params->ctx.addr);
+                    ESP_LOGI("BATTERY LEVEL:", "level: %d", batt_val);
 
                     length += mpid_len + data_len + 1;
                     data += mpid_len + data_len + 1;
