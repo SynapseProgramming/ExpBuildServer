@@ -23,6 +23,10 @@
 #include <esp_ble_mesh_common_api.h>
 #include <esp_ble_mesh_local_data_operation_api.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+
 #include "ble_mesh_example_init.h"
 #include "board.h"
 
@@ -51,6 +55,8 @@ void example_ble_mesh_send_sensor_message(uint32_t opcode);
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0xdd, 0xdd};
 static uint16_t server_address = ESP_BLE_MESH_ADDR_UNASSIGNED;
 static uint16_t sensor_prop_id;
+
+QueueHandle_t queue;
 
 typedef struct
 {
@@ -739,8 +745,6 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                     int8_t z_val = (int8_t)(*(data + mpid_len + 2));
                     int8_t batt_val = (int8_t)(*(data + mpid_len + 3));
 
-
-
                     //   ESP_LOGI(TAG, "Sensor client, event %u, addr 0x%04x", event, param->params->ctx.addr);
                     // ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", x_val, y_val, z_val, param->params->ctx.addr);
                     // ESP_LOGI("BATTERY LEVEL:", "level: %d", batt_val);
@@ -750,10 +754,11 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                     receivedData.x = x_val;
                     receivedData.y = y_val;
                     receivedData.z = z_val;
-                    receivedData.ID = (uint8_t) param->params->ctx.addr;
+                    receivedData.ID = (uint8_t)param->params->ctx.addr;
 
-                    ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", receivedData.x, receivedData.y, receivedData.z, receivedData.ID);
-                    ESP_LOGI("BATTERY LEVEL:", "level: %d", receivedData.battery);
+                    xQueueSend(queue, &receivedData, pdMS_TO_TICKS(100));
+                    // ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", receivedData.x, receivedData.y, receivedData.z, receivedData.ID);
+                    // ESP_LOGI("BATTERY LEVEL:", "level: %d", receivedData.battery);
 
                     length += mpid_len + data_len + 1;
                     data += mpid_len + data_len + 1;
@@ -820,11 +825,38 @@ static esp_err_t ble_mesh_init(void)
     return ESP_OK;
 }
 
+
+// main function which dequeue the elements.
+void task_receive(void *arg)
+{
+
+    SensorNodeData receivedData;
+    while (1)
+    {
+        if (xQueueReceive(queue, &(receivedData), pdMS_TO_TICKS(100)))
+        {
+            ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", receivedData.x, receivedData.y, receivedData.z, receivedData.ID);
+            ESP_LOGI("BATTERY LEVEL:", "level: %d", receivedData.battery);
+        }
+        else
+        {
+            printf("nothing in q!\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
 void app_main(void)
 {
     esp_err_t err = ESP_OK;
 
     ESP_LOGI(TAG, "Initializing...");
+
+    // Queue creation
+    queue = xQueueCreate(10, sizeof(SensorNodeData));
+
+    xTaskCreate(task_receive, "task_receive", 4096, NULL, 10, NULL);
 
     err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES)
