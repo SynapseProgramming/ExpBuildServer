@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
+#include "esp_log.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
@@ -7,20 +8,37 @@ TaskHandle_t task_send_Handle = NULL;
 TaskHandle_t task_receive_Handle = NULL;
 QueueHandle_t queue;
 
+typedef struct
+{
+    int8_t x;
+    int8_t y;
+    int8_t z;
+    int8_t battery;
+    uint8_t ID;
+
+} SensorNodeData;
+
 void task_send(void *arg)
 {
-    char string_send[9];
-    sprintf(string_send, "data 1");
-    xQueueSend(queue, (void *)string_send, pdMS_TO_TICKS(100));
-    printf("Send:  %s \n", string_send);
+    SensorNodeData input;
 
-    sprintf(string_send, "data 2");
-    xQueueSend(queue, (void *)string_send, pdMS_TO_TICKS(100));
-    printf("Send:  %s \n", string_send);
+    input.ID = 1;
+    input.x = 2;
+    input.y = 5;
+    input.z = 45;
+    input.battery = 69;
 
-    sprintf(string_send, "data 3");
-    xQueueSend(queue, (void *)string_send, pdMS_TO_TICKS(100));
-    printf("Send:  %s \n\n", string_send);
+    xQueueSend(queue, &input, pdMS_TO_TICKS(100));
+    printf("Sent Data!\n");
+
+    input.ID = 2;
+    input.x = 45;
+    input.y = 67;
+    input.z = 32;
+    input.battery = 99;
+
+    xQueueSend(queue, &input, pdMS_TO_TICKS(100));
+    printf("Sent Data again!\n");
 
     while (1)
     {
@@ -30,20 +48,29 @@ void task_send(void *arg)
 
 void task_receive(void *arg)
 {
-    char string_receive[9];
+    // char string_receive[9];
+
+    SensorNodeData receivedData;
     while (1)
     {
-        if (xQueueReceive(queue, &(string_receive), pdMS_TO_TICKS(100)))
+        if (xQueueReceive(queue, &(receivedData), pdMS_TO_TICKS(100)))
         {
-            printf("Received:  %s \n", string_receive);
+            ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", receivedData.x, receivedData.y, receivedData.z, receivedData.ID);
+            ESP_LOGI("BATTERY LEVEL:", "level: %d", receivedData.battery);
         }
+        else
+        {
+            printf("nothing in q!\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
 void app_main()
 {
     // Queue creation
-    queue = xQueueCreate(5, 10);
+    queue = xQueueCreate(10, sizeof(SensorNodeData));
 
     // Available
     printf("\nAvailable at the begining: %d \n\n", uxQueueSpacesAvailable(queue));
