@@ -22,6 +22,8 @@
 #include <esp_ble_mesh_sensor_model_api.h>
 #include <esp_ble_mesh_common_api.h>
 #include <esp_ble_mesh_local_data_operation_api.h>
+#include "driver/uart.h"
+#include "driver/gpio.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -48,6 +50,17 @@
 #define APP_KEY_IDX 0x0000
 #define APP_KEY_OCTET 0x12
 
+#define ECHO_TEST_TXD 17
+#define ECHO_TEST_RXD 16
+#define ECHO_TEST_RTS (UART_PIN_NO_CHANGE)
+#define ECHO_TEST_CTS (UART_PIN_NO_CHANGE)
+
+#define ECHO_UART_PORT_NUM 2 // second uart. gpio tx: 17 gpio rx: 16
+#define ECHO_UART_BAUD_RATE 115200
+#define ECHO_TASK_STACK_SIZE 2048
+
+#define BUF_SIZE (1024)
+
 #define COMP_DATA_1_OCTET(msg, offset) (msg[offset])
 #define COMP_DATA_2_OCTET(msg, offset) (msg[offset + 1] << 8 | msg[offset])
 
@@ -57,6 +70,15 @@ static uint16_t server_address = ESP_BLE_MESH_ADDR_UNASSIGNED;
 static uint16_t sensor_prop_id;
 
 QueueHandle_t queue;
+
+uart_config_t uart_config = {
+    .baud_rate = ECHO_UART_BAUD_RATE,
+    .data_bits = UART_DATA_8_BITS,
+    .parity = UART_PARITY_DISABLE,
+    .stop_bits = UART_STOP_BITS_1,
+    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    .source_clk = UART_SCLK_REF_TICK,
+};
 
 typedef struct
 {
@@ -825,8 +847,9 @@ static esp_err_t ble_mesh_init(void)
     return ESP_OK;
 }
 
-
 // main function which dequeue the elements.
+// TODO: add in uart send function
+
 void task_receive(void *arg)
 {
 
@@ -837,6 +860,18 @@ void task_receive(void *arg)
         {
             ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", receivedData.x, receivedData.y, receivedData.z, receivedData.ID);
             ESP_LOGI("BATTERY LEVEL:", "level: %d", receivedData.battery);
+            // create an array of 5 elements.
+            int num_elements = 5;
+            size_t array_size = num_elements * sizeof(uint8_t);
+            uint8_t *data = (uint8_t *)malloc(array_size);
+
+
+            data[0] = receivedData.ID;
+            data[1] = receivedData.battery;
+            data[2] = receivedData.x;
+            data[3] = receivedData.y;
+            data[4] = receivedData.z;
+            uart_write_bytes(ECHO_UART_PORT_NUM, (const uint8_t *)data, array_size);
         }
         else
         {
@@ -852,6 +887,11 @@ void app_main(void)
     esp_err_t err = ESP_OK;
 
     ESP_LOGI(TAG, "Initializing...");
+
+    // initialise uart
+    ESP_ERROR_CHECK(uart_driver_install(ECHO_UART_PORT_NUM, BUF_SIZE * 2, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_param_config(ECHO_UART_PORT_NUM, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(ECHO_UART_PORT_NUM, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS));
 
     // Queue creation
     queue = xQueueCreate(10, sizeof(SensorNodeData));
