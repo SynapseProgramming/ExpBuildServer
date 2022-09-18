@@ -22,6 +22,12 @@
 #include <esp_ble_mesh_sensor_model_api.h>
 #include <esp_ble_mesh_common_api.h>
 #include <esp_ble_mesh_local_data_operation_api.h>
+#include "driver/uart.h"
+#include "driver/gpio.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 
 #include "ble_mesh_example_init.h"
 #include "board.h"
@@ -44,6 +50,17 @@
 #define APP_KEY_IDX 0x0000
 #define APP_KEY_OCTET 0x12
 
+#define ECHO_TEST_TXD 17
+#define ECHO_TEST_RXD 16
+#define ECHO_TEST_RTS (UART_PIN_NO_CHANGE)
+#define ECHO_TEST_CTS (UART_PIN_NO_CHANGE)
+
+#define ECHO_UART_PORT_NUM 2 // second uart. gpio tx: 17 gpio rx: 16
+#define ECHO_UART_BAUD_RATE 115200
+#define ECHO_TASK_STACK_SIZE 2048
+
+#define BUF_SIZE (1024)
+
 #define COMP_DATA_1_OCTET(msg, offset) (msg[offset])
 #define COMP_DATA_2_OCTET(msg, offset) (msg[offset + 1] << 8 | msg[offset])
 
@@ -51,6 +68,27 @@ void example_ble_mesh_send_sensor_message(uint32_t opcode);
 static uint8_t dev_uuid[ESP_BLE_MESH_OCTET16_LEN] = {0xdd, 0xdd};
 static uint16_t server_address = ESP_BLE_MESH_ADDR_UNASSIGNED;
 static uint16_t sensor_prop_id;
+
+QueueHandle_t queue;
+
+uart_config_t uart_config = {
+    .baud_rate = ECHO_UART_BAUD_RATE,
+    .data_bits = UART_DATA_8_BITS,
+    .parity = UART_PARITY_DISABLE,
+    .stop_bits = UART_STOP_BITS_1,
+    .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    .source_clk = UART_SCLK_REF_TICK,
+};
+
+typedef struct
+{
+    int8_t x;
+    int8_t y;
+    int8_t z;
+    int8_t battery;
+    uint8_t ID;
+
+} SensorNodeData;
 
 static struct esp_ble_mesh_key
 {
@@ -648,8 +686,10 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                         int8_t x_val = (int8_t)(*(data + mpid_len));
                         int8_t y_val = (int8_t)(*(data + mpid_len + 1));
                         int8_t z_val = (int8_t)(*(data + mpid_len + 2));
+                        int8_t batt_val = (int8_t)(*(data + mpid_len + 3));
 
                         ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d", x_val, y_val, z_val);
+                        ESP_LOGI("BATTERY LEVEL:", "level: %d", batt_val);
 
                         length += mpid_len + data_len + 1;
                         data += mpid_len + data_len + 1;
@@ -725,9 +765,22 @@ static void example_ble_mesh_sensor_client_cb(esp_ble_mesh_sensor_client_cb_even
                     int8_t x_val = (int8_t)(*(data + mpid_len));
                     int8_t y_val = (int8_t)(*(data + mpid_len + 1));
                     int8_t z_val = (int8_t)(*(data + mpid_len + 2));
+                    int8_t batt_val = (int8_t)(*(data + mpid_len + 3));
 
                     //   ESP_LOGI(TAG, "Sensor client, event %u, addr 0x%04x", event, param->params->ctx.addr);
-                    ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", x_val, y_val, z_val, param->params->ctx.addr);
+                    // ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", x_val, y_val, z_val, param->params->ctx.addr);
+                    // ESP_LOGI("BATTERY LEVEL:", "level: %d", batt_val);
+
+                    SensorNodeData receivedData;
+                    receivedData.battery = batt_val;
+                    receivedData.x = x_val;
+                    receivedData.y = y_val;
+                    receivedData.z = z_val;
+                    receivedData.ID = (uint8_t)param->params->ctx.addr;
+
+                    xQueueSend(queue, &receivedData, pdMS_TO_TICKS(100));
+                    // ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", receivedData.x, receivedData.y, receivedData.z, receivedData.ID);
+                    // ESP_LOGI("BATTERY LEVEL:", "level: %d", receivedData.battery);
 
                     length += mpid_len + data_len + 1;
                     data += mpid_len + data_len + 1;
@@ -794,11 +847,59 @@ static esp_err_t ble_mesh_init(void)
     return ESP_OK;
 }
 
+// main function which dequeue the elements.
+// TODO: add in uart send function
+
+void task_receive(void *arg)
+{
+
+    SensorNodeData receivedData;
+    while (1)
+    {
+        if (xQueueReceive(queue, &(receivedData), pdMS_TO_TICKS(100)))
+        {
+            ESP_LOGI("ACC SENSOR:", "x: %d y: %d z: %d from sensor: 0x%04x", receivedData.x, receivedData.y, receivedData.z, receivedData.ID);
+            ESP_LOGI("BATTERY LEVEL:", "level: %d", receivedData.battery);
+            // create an array of 5 elements.
+            int num_elements = 5;
+            size_t array_size = num_elements * sizeof(uint8_t);
+            uint8_t *data = (uint8_t *)malloc(array_size);
+
+
+            data[0] = receivedData.ID;
+            data[1] = receivedData.battery;
+            data[2] = receivedData.x;
+            data[3] = receivedData.y;
+            data[4] = receivedData.z;
+            uart_write_bytes(ECHO_UART_PORT_NUM, (const uint8_t *)data, array_size);
+            free(data);
+
+        }
+        else
+        {
+            printf("nothing in q!\n");
+        }
+        ESP_LOGI("HEAP level","%d",xPortGetFreeHeapSize());
+
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
 void app_main(void)
 {
     esp_err_t err = ESP_OK;
 
     ESP_LOGI(TAG, "Initializing...");
+
+    // initialise uart
+    ESP_ERROR_CHECK(uart_driver_install(ECHO_UART_PORT_NUM, BUF_SIZE * 2, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_param_config(ECHO_UART_PORT_NUM, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(ECHO_UART_PORT_NUM, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS));
+
+    // Queue creation
+    queue = xQueueCreate(10, sizeof(SensorNodeData));
+
+    xTaskCreate(task_receive, "task_receive", 4096, NULL, 10, NULL);
 
     err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES)
