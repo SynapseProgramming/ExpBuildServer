@@ -872,11 +872,14 @@ void task_receive(void *arg)
             data[3] = receivedData.y;
             data[4] = receivedData.z;
             uart_write_bytes(ECHO_UART_PORT_NUM, (const uint8_t *)data, array_size);
+            free(data);
+
         }
         else
         {
             printf("nothing in q!\n");
         }
+        ESP_LOGI("HEAP level","%d",xPortGetFreeHeapSize());
 
         vTaskDelay(pdMS_TO_TICKS(500));
     }
